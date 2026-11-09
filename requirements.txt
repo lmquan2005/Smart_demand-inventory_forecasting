@@ -1,0 +1,10 @@
+pyspark
+delta-spark
+pandas
+numpy
+pyarrow
+pyyaml
+pytest
+lightgbm
+scikit-learn
+matplotlib
