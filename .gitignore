@@ -1,5 +1,6 @@
 dataset/raw/*.csv
 dataset/processed/
+dataset
 .venv/
 __pycache__/
 *.pyc
