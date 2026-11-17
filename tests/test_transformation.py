@@ -9,6 +9,8 @@ from pyspark.sql.types import (
     DoubleType,
 )
 
+from src.transformation.inventory_transformer import InventoryTransformer
+
 
 SILVER_PATH = Path("dataset/processed/silver")
 
@@ -32,6 +34,17 @@ TABLES = {
             "store_id", "item_id", "wm_yr_wk", "sell_price"
         ],
         "key_columns": ["store_id", "item_id", "wm_yr_wk"],
+    },
+    "inventory": {
+        "path": SILVER_PATH / "silver_inventory",
+        "required_columns": [
+            "item_id", "dept_id", "cat_id", "store_id", "state_id",
+            "day", "units_sold", "avg_daily_demand", "lead_time_days",
+            "opening_stock", "replenishment_qty", "closing_stock",
+            "reorder_point", "lost_sales", "stockout_flag",
+            "overstock_flag",
+        ],
+        "key_columns": ["item_id", "store_id", "day"],
     },
 }
 
@@ -126,3 +139,56 @@ def test_silver_prices_data_types(spark):
 
     assert isinstance(schema["wm_yr_wk"], IntegerType)
     assert isinstance(schema["sell_price"], DoubleType)
+
+
+def test_silver_inventory_data_types(spark):
+    df = spark.read.format("delta").load(
+        str(TABLES["inventory"]["path"])
+    )
+
+    schema = {field.name: field.dataType for field in df.schema.fields}
+
+    assert isinstance(schema["units_sold"], DoubleType)
+    assert isinstance(schema["avg_daily_demand"], DoubleType)
+    assert isinstance(schema["lead_time_days"], IntegerType)
+    assert isinstance(schema["stockout_flag"], IntegerType)
+    assert isinstance(schema["overstock_flag"], IntegerType)
+
+
+def test_inventory_transformer_cleans_and_casts_data(spark):
+    source = spark.createDataFrame(
+        [
+            (" ITEM_1 ", " STORE_1 ", " d_1 ", "4", "2.5", "5", "0"),
+            ("   ", "STORE_1", "d_2", "3", "2.5", "5", "0"),
+        ],
+        [
+            "item_id",
+            "store_id",
+            "day",
+            "units_sold",
+            "avg_daily_demand",
+            "lead_time_days",
+            "stockout_flag",
+        ],
+    )
+
+    transformed = InventoryTransformer().transform(source)
+
+    assert transformed.count() == 1
+    result = transformed.first()
+    schema = {field.name: field.dataType for field in transformed.schema.fields}
+
+    assert result["item_id"] == "ITEM_1"
+    assert result["store_id"] == "STORE_1"
+    assert result["day"] == "d_1"
+    assert result["units_sold"] == 4.0
+    assert isinstance(schema["units_sold"], DoubleType)
+    assert isinstance(schema["lead_time_days"], IntegerType)
+    assert isinstance(schema["stockout_flag"], IntegerType)
+
+
+def test_inventory_transformer_requires_business_keys(spark):
+    source = spark.createDataFrame([("ITEM_1",)], ["item_id"])
+
+    with pytest.raises(ValueError, match="Missing columns"):
+        InventoryTransformer().transform(source)

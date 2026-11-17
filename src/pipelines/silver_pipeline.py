@@ -6,6 +6,7 @@ from src.common.spark_manager import get_spark
 from src.transformation.sales_transformer import SalesTransformer
 from src.transformation.calendar_transformer import CalendarTransformer
 from src.transformation.price_transformer import SellPricesTransformer
+from src.transformation.inventory_transformer import InventoryTransformer
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -23,6 +24,7 @@ class SilverPipeline:
         self.sales_transformer = SalesTransformer()
         self.calendar_transformer = CalendarTransformer()
         self.prices_transformer = SellPricesTransformer()
+        self.inventory_transformer = InventoryTransformer()
 
     def read_bronze(self, table_name):
 
@@ -91,6 +93,18 @@ class SilverPipeline:
         self.write_silver(
             silver_prices,
             "silver_sell_prices"
+        )
+
+        # INVENTORY
+        bronze_inventory = self.read_bronze("bronze_inventory")
+
+        silver_inventory = self.inventory_transformer.transform(
+            bronze_inventory
+        )
+
+        self.write_silver(
+            silver_inventory,
+            "silver_inventory"
         )
 
         print("\n========== SILVER PIPELINE COMPLETED ==========")
